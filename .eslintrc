@@ -1,0 +1,10 @@
+{
+  "env": {
+    "node": true,
+    "mocha": true,
+  },
+  "extends": "cerebral",
+  "rules": {
+    "no-console": 2,
+  }
+}
