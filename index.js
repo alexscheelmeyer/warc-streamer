@@ -1,5 +1,3 @@
-// const fs = require('fs');
-// const zlib = require('zlib');
 const _ = require('lodash');
 const { Transform } = require('stream');
 const HTTPParser = require('http-parser-js').HTTPParser;
@@ -119,6 +117,7 @@ function parseHeader(state) {
 
   fields['Content-Length'] = parseInt(_.get(fields, 'Content-Length', -1), 10);
 
+  delete state.partial.fields;
   return _.merge(state, {
     partial: {
       header: fields,
@@ -169,6 +168,34 @@ function parseRequest(chunk, chunkPos, length) {
   return { info, headers, body };
 }
 
+function parseCustomFields(chunk, chunkPos, length) {
+  const str = chunk.slice(chunkPos, (chunkPos + length) - 4).toString();
+  const lineSplit = (str.indexOf('\r\n') > 0) ? '\r\n' : '\n';
+  const fields = str.split(lineSplit).map((line) => {
+    const parts = line.split(':');
+    const name = parts[0];
+    const value = parts.slice(1).join(':').trim();
+    return [name, value];
+  });
+
+  return { fields: _.fromPairs(fields) };
+}
+
+function parseInfo(chunk, chunkPos, length) {
+  return parseCustomFields(chunk, chunkPos, length);
+}
+
+function parseMetadata(chunk, chunkPos, length) {
+  return parseCustomFields(chunk, chunkPos, length);
+}
+
+function parseResource(chunk, chunkPos, length) {
+  const str = chunk.slice(chunkPos, (chunkPos + length) - 2).toString();
+
+  console.log(str);
+  throw new Error('TODO');
+}
+
 function nextRecord(state, blockSize) {
   if (!state) throw new Error('missing state');
   if (!blockSize) throw new Error('missing blockSize');
@@ -207,6 +234,15 @@ function parseBlock(state) {
   }
 
   switch (type) {
+    case 'warcinfo': {
+      const infoRecord = parseInfo(state.chunk, state.chunkPos, length);
+      const record = {
+        type: 'warcinfo',
+        header: _.get(state, 'partial.header'),
+        block: infoRecord,
+      };
+      return addRecord(nextRecord(state, blockSize), record);
+    }
     case 'request': {
       const requestRecord = parseRequest(state.chunk, state.chunkPos, length);
       const record = {
@@ -222,6 +258,25 @@ function parseBlock(state) {
         type: 'response',
         header: _.get(state, 'partial.header'),
         block: responseRecord,
+      };
+      return addRecord(nextRecord(state, blockSize), record);
+    }
+    case 'metadata': {
+      const metadataRecord = parseMetadata(state.chunk, state.chunkPos, length);
+      const record = {
+        type: 'metadata',
+        header: _.get(state, 'partial.header'),
+        block: metadataRecord,
+      };
+      return addRecord(nextRecord(state, blockSize), record);
+    }
+    case 'resource': {
+      console.log(state);
+      const resourceRecord = parseResource(state.chunk, state.chunkPos, length);
+      const record = {
+        type: 'metadata',
+        header: _.get(state, 'partial.header'),
+        block: resourceRecord,
       };
       return addRecord(nextRecord(state, blockSize), record);
     }
@@ -297,21 +352,6 @@ class WarcRead extends Transform {
     callback(null);
   }
 }
-
-// for testing
-// let numRecords = 0;
-// fs.createReadStream(warcFile)
-//   .pipe(zlib.createGunzip())
-//   .pipe(new WarcRead())
-//   .on('data', (record) => {
-//     if (numRecords++ % 100 === 0) {
-//       console.log('found record', numRecords, record.type);
-//     }
-//   })
-//   .on('error', (err) => {
-//     console.log('Error', err);
-//   });
-//
 
 module.exports = {
   ReadTransform: WarcRead,
