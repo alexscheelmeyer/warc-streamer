@@ -3,9 +3,9 @@ const zlib = require('zlib');
 const warc = require('.');
 
 // const warcFile = `${__dirname}/../../../Downloads/0013wb-88.warc.gz`;
-const warcFile = `${__dirname}/../../../Downloads/rent/arto_20161107025000.megawarc.warc.gz`;
+// const warcFile = `${__dirname}/../../../Downloads/rent/arto_20161107025000.megawarc.warc.gz`;
 // const warcFile = `${__dirname}/../../../Downloads/CC-NEWS-20170731094200-00001.warc.gz`;
-// const warcFile = `${__dirname}/../../../Downloads/CC-MAIN-20171016214209-20171016234209-00001.warc.gz`;
+const warcFile = `${__dirname}/../../../Downloads/temp/CC-MAIN-20180920101233-20180920121606-00023.warc.gz`;
 
 let numRecords = 0;
 fs.createReadStream(warcFile)
@@ -16,11 +16,21 @@ fs.createReadStream(warcFile)
     if (numRecords % 100 === 0) {
       console.log(numRecords);
     }
-    // if (record.type === 'response') {
-    //   console.log(record.header['WARC-Target-URI']);
-    // }
-    if (record.type === 'metadata') {
-      console.log(record.block.fields);
+    if (record.type === 'request') {
+      // console.log('request', record);
+    }
+    else if (record.type === 'response') {
+      console.log('response', record.header['WARC-Target-URI']);
+      if (record.block.body) {
+        // console.log(record.block.body.toString());
+      }
+    }
+    else if (record.type === 'metadata') {
+      console.log('metadata', record);
+      // console.log(record.block.fields);
+    }
+    else {
+      console.log(record.type);
     }
   })
   .on('error', (err) => {
